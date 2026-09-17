@@ -1,0 +1,60 @@
+[*] Work dir: /tmp/tmp.whbiv1xMJq
+[*] Cloning google-gemini/gemini-cli at pinned commit 9c1b0a610534d6f8120964cf2672c07807d8fc90 ...
+[*] Installing workspace dependencies (needed to import the real TS modules) ...
+[*] Installing bubblewrap (real sandbox binary) ...
+bubblewrap 0.9.0
+[*] Ensuring unprivileged user namespaces are enabled for bwrap ...
+[*] Installing tsx ...
+
+############################################
+# Step 1: verify the documented promise still reads the way it's quoted
+############################################
+  Confirmed: docs/cli/sandbox.md still states this exact promise.
+
+############################################
+# Step 2: generate REAL bwrap args via the real, unmodified buildBwrapArgs()
+############################################
+  Real args generated:
+["--unshare-all","--new-session","--die-with-parent","--ro-bind","/","/","--dev","/dev","--proc","/proc","--tmpfs","/tmp","--bind-try","/home/testrunner/gemini-vrp-poc-victim-workspace","/home/testrunner/gemini-vrp-poc-victim-workspace","--ro-bind","/home/testrunner/gemini-vrp-poc-victim-workspace/.git","/home/testrunner/gemini-vrp-poc-victim-workspace/.git"]
+
+############################################
+# Step 3: ACTUALLY EXECUTE bwrap with those exact real args
+############################################
+=== TEST 1: READ /home/testrunner/gemini-vrp-poc-victim-home/.ssh/id_rsa (outside the workspace) from inside the real sandbox ===
+exit code: 0
+stdout: -----BEGIN OPENSSH PRIVATE KEY-----
+SIMULATED_REAL_SECRET_SSH_KEY
+-----END OPENSSH PRIVATE KEY-----
+
+stderr: 
+
+=== TEST 2 (control): WRITE to /home/testrunner/gemini-vrp-poc-victim-home/.ssh/id_rsa from inside the same sandbox ===
+exit code: 2
+stdout: 
+stderr: sh: 1: cannot create /home/testrunner/gemini-vrp-poc-victim-home/.ssh/id_rsa: Read-only file system
+
+
+=== VERDICT ===
+Read of file outside workspace SUCCEEDED (contradicts documented confinement): true
+Write to same file was correctly BLOCKED (file unmodified after write attempt): true
+
+############################################
+# Step 4: source-level comparison against the real macOS implementation
+############################################
+Checking real baseProfile.ts for default-deny policy...
+  contains literal "(deny default)": true
+  contains the file's own comment describing this as "strict allowlist (deny default)": true
+
+Checking real seatbeltArgsBuilder.ts for workspace-scoped read allow rules...
+  explicit (allow file-read* (subpath <workspace>)) rule present: true
+  any blanket "(allow file-read* (subpath "/"))" rule present (would mean unrestricted, like Linux): false
+
+=== VERDICT ===
+CONFIRMED: the real macOS source uses default-deny with reads explicitly
+scoped to the workspace (plus other specific allowlisted paths, e.g. for
+basic process execution) -- no blanket root-filesystem read allowance.
+This is the correct behavior. Linux's bwrap-based implementation, tested
+above with real execution, does not have this restriction: it binds the
+entire filesystem read-only unconditionally.
+
+[*] Cleaning up /tmp/tmp.whbiv1xMJq
